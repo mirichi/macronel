@@ -988,6 +988,7 @@ class Macronel
       return if body_id == -1
 
       registered_macros = []
+      registered_helpers = []
       stmts = get_stmts(body_id)
       i = 0
       while i < stmts.length
@@ -999,6 +1000,15 @@ class Macronel
             if !args.empty?
               arg_node = args[0]
               registered_macros.push(table.nd_content[arg_node])
+            end
+          end
+        elsif table.nd_type[nid] == "CallNode" && table.nd_name[nid] == "register_helper"
+          args_id = table.nd_arguments[nid]
+          if args_id != -1
+            args = get_args(args_id)
+            if !args.empty?
+              arg_node = args[0]
+              registered_helpers.push(table.nd_content[arg_node])
             end
           end
         end
@@ -1029,23 +1039,30 @@ class Macronel
         i = i + 1
       end
 
-      # Get the Ruby code of LispNode (if defined at top-level)
-      lisp_node_id = -1
-      nid = 0
-      while nid < table.nd_type.length
-        if table.nd_type[nid] == "ClassNode"
-          cpath = table.nd_constant_path[nid]
-          if cpath != -1 && table.nd_name[cpath] == "LispNode"
-            lisp_node_id = nid
-            break
+      # Extract helper class codes
+      helper_codes = ""
+      helper_node_ids = []
+      h_idx = 0
+      while h_idx < registered_helpers.length
+        h_name = registered_helpers[h_idx].to_s
+        h_node_id = -1
+        nid = 0
+        while nid < table.nd_type.length
+          if table.nd_type[nid] == "ClassNode"
+            cpath = table.nd_constant_path[nid]
+            if cpath != -1 && table.nd_name[cpath] == h_name
+              h_node_id = nid
+              break
+            end
           end
+          nid = nid + 1
         end
-        nid = nid + 1
-      end
-      
-      lisp_node_code = ""
-      if lisp_node_id != -1
-        lisp_node_code = to_ruby(lisp_node_id).to_s
+        
+        if h_node_id != -1
+          helper_codes << to_ruby(h_node_id).to_s << "\n"
+          helper_node_ids.push(h_node_id)
+        end
+        h_idx = h_idx + 1
       end
 
       # Get the Ruby code of module MacronelMacros
@@ -1060,7 +1077,7 @@ class Macronel
         if id == macronel_module_id
           remove_node_tree(id)
           keep = false
-        elsif id == lisp_node_id
+        elsif helper_node_ids.include?(id)
           remove_node_tree(id)
           keep = false
         elsif table.nd_type[id] == "ModuleNode" && table.nd_constant_path[id] != -1 && table.nd_name[table.nd_constant_path[id]] == "Macronel"
@@ -1102,10 +1119,13 @@ class Macronel
           def self.register_macro(name)
             # no-op
           end
+          def self.register_helper(name)
+            # no-op
+          end
         end
 
         # User's macro definitions:
-        #{lisp_node_code}
+        #{helper_codes}
         #{module_code}
 
         ast_file = ARGV[0]

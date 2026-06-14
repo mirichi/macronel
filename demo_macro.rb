@@ -15,6 +15,7 @@ module Macronel
   def self.embed_string(path); ""; end
   def self.brainfuck(bf); ""; end
   def self.lisp(code); ""; end
+  def self.register_helper(name); end
   class << self
     attr_accessor :ast_table
   end
@@ -64,6 +65,7 @@ class LispNode
 end
 
 module MacronelMacros
+  register_helper :LispNode
   register_macro :embed_string
   register_macro :config
   register_macro :html_template
